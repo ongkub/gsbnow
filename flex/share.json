@@ -32,7 +32,7 @@
         },
         {
           "type": "text",
-          "text": "จาก GSB NOW",
+          "text": "จาก LINE GSB NOW",
           "weight": "bold",
           "size": "xl",
           "wrap": true,
