@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSB NOW – ช่วยหาหน่อย!</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+/* ═══════════════════════════════════ VARIABLES */
+:root {
+  --pink: #ff6eb4; --pink-dark: #e0458f; --pink-light: #fff0f8;
+  --sky: #4dd8f0;  --sky-dark: #1ab5d8;  --sky-deep: #0e8fb5;
+  --yellow: #ffe44d; --green: #2ecc71; --red: #e74c3c;
+  --cell-bg: rgba(255,255,255,0.18); --cell-border: rgba(255,255,255,0.35);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  background: linear-gradient(160deg,#b8f0ff 0%,#70d8f5 40%,#38c5e8 100%);
+  font-family: 'Kanit', sans-serif;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 8px 48px; overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════ BUBBLES */
+.bubble { position: fixed; border-radius: 50%; opacity: .13; animation: floatUp linear infinite; pointer-events: none; }
+@keyframes floatUp { from { transform: translateY(110vh); opacity: .1; } to { transform: translateY(-10vh); opacity: 0; } }
+
+/* ═══════════════════════════════════ LOADING SCREEN */
+#loading-screen {
+  position: fixed; inset: 0; z-index: 200;
+  background: linear-gradient(160deg,#b8f0ff,#38c5e8);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+.loading-logo { font-size: 52px; font-weight: 900; background: linear-gradient(135deg,#ff6eb4,#ff2d78); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.loading-spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top-color: var(--pink); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; font-weight: 600; color: #007fa3; }
+
+/* ═══════════════════════════════════ HEADER */
+.header { text-align: center; margin-bottom: 10px; width: 100%; }
+.badge { display: inline-block; background: var(--pink); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 14px; border-radius: 20px; letter-spacing: 1px; margin-bottom: 4px; }
+.title-th { font-size: 20px; font-weight: 800; color: var(--pink-dark); text-shadow: 1px 1px 0 #fff; }
+.title-brand { font-size: 40px; font-weight: 900; background: linear-gradient(135deg,#ff6eb4,#ff2d78,#c8006b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1; letter-spacing: -1px; }
+.subtitle { font-size: 14px; font-weight: 600; color: #007fa3; }
+
+/* User Profile Strip */
+.user-strip {
+  display: none; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.75); border-radius: 50px;
+  padding: 5px 14px 5px 5px; margin-top: 8px;
+  box-shadow: 0 2px 10px rgba(0,80,140,0.12);
+}
+.user-strip.show { display: flex; }
+.user-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 2px solid var(--pink); }
+.user-name { font-size: 13px; font-weight: 700; color: #333; }
+.liff-badge { font-size: 10px; background: #06c755; color: #fff; border-radius: 10px; padding: 2px 7px; font-weight: 700; }
+
+/* ═══════════════════════════════════ STOCK BAR */
+.stock-bar {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  background: rgba(255,255,255,0.8); border-radius: 14px;
+  padding: 8px 18px; margin-bottom: 10px; font-size: 13px; font-weight: 600; color: #007fa3;
+}
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); animation: blink 1.4s infinite; flex-shrink: 0; }
+.dot.low  { background: #f39c12; }
+.dot.out  { background: var(--red); animation: none; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* ═══════════════════════════════════ INSTRUCTION */
+.instruction {
+  background: rgba(255,255,255,0.6); border-radius: 14px;
+  padding: 9px 16px; font-size: 12px; font-weight: 600; color: #007fa3;
+  text-align: center; margin-bottom: 10px; max-width: 360px; line-height: 1.6;
+}
+.instruction strong { color: var(--pink-dark); }
+
+/* ═══════════════════════════════════ COUNTER */
+.counter-wrap { display: flex; gap: 12px; margin: 12px 0 8px; flex-wrap: wrap; justify-content: center; }
+.counter-box { background: #fff; border-radius: 20px; padding: 10px 24px; text-align: center; box-shadow: 0 4px 18px rgba(0,100,150,0.15); min-width: 130px; }
+.counter-label { font-size: 11px; font-weight: 600; color: #aaa; letter-spacing: .5px; }
+.counter-num { font-size: 40px; font-weight: 900; color: var(--pink-dark); line-height: 1.1; }
+.counter-total { font-size: 12px; color: #bbb; font-weight: 600; }
+.dir-box { background: rgba(255,255,255,0.7); border-radius: 14px; padding: 8px 14px; min-width: 120px; text-align: center; }
+.dir-label { font-size: 10px; font-weight: 600; color: #aaa; margin-bottom: 4px; }
+.dir-chips { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.chip { background: var(--pink); color: #fff; border-radius: 20px; font-size: 9px; font-weight: 700; padding: 2px 7px; white-space: nowrap; }
+
+/* ═══════════════════════════════════ STATUS */
+.status-msg { text-align: center; font-size: 13px; font-weight: 600; color: #007fa3; min-height: 20px; margin-bottom: 6px; }
+.status-msg.ok  { color: var(--pink-dark); font-size: 15px; animation: pop .3s ease; }
+.status-msg.err { color: #d07000; }
+@keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+
+/* ═══════════════════════════════════ GRID */
+.grid-card {
+  background: linear-gradient(135deg,#29cfe4,#1ab5d8 60%,#0e8fb5);
+  border-radius: 24px; padding: 13px;
+  box-shadow: 0 8px 30px rgba(0,100,150,0.22), inset 0 1px 0 rgba(255,255,255,0.35), 0 0 0 3px rgba(255,255,255,0.45);
+  position: relative;
+}
+.grid-card::before { content:''; position:absolute; inset:3px; border-radius:21px; border:2px dashed rgba(255,255,255,0.25); pointer-events:none; }
+.grid { display: grid; grid-template-columns: repeat(8,1fr); gap: 5px; user-select: none; }
+.cell {
+  width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 800; color: #fff;
+  background: var(--cell-bg); border: 1.5px solid var(--cell-border); border-radius: 10px;
+  cursor: pointer; touch-action: none;
+  transition: background .1s, transform .1s, box-shadow .1s;
+  text-shadow: 0 1px 3px rgba(0,80,120,0.3);
+}
+.cell:hover { background: rgba(255,255,255,0.28); transform: scale(1.05); }
+.cell.selecting { background: var(--yellow); color: #333; text-shadow: none; transform: scale(1.08); box-shadow: 0 0 10px rgba(255,210,0,.6); z-index: 2; }
+.cell.found { background: var(--pink); border-color: #ff2d78; box-shadow: 0 0 10px rgba(255,110,180,.45); }
+.cell.found.selecting { background: var(--yellow); color: #333; text-shadow: none; }
+
+/* ═══════════════════════════════════ CONGRATS STRIP */
+.congrats {
+  display: none; background: linear-gradient(135deg,#ff6eb4,#ff2d78);
+  color: #fff; border-radius: 20px; padding: 14px 20px; text-align: center;
+  box-shadow: 0 8px 28px rgba(255,80,160,.32); margin-top: 12px; max-width: 370px; width: 100%;
+}
+.congrats.show { display: block; animation: slideUp .4s ease; }
+.congrats h2 { font-size: 19px; font-weight: 900; margin-bottom: 3px; }
+.congrats p  { font-size: 12px; opacity: .9; }
+@keyframes slideUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+
+/* ═══════════════════════════════════ BUTTONS */
+.btn-reset {
+  margin-top: 12px; background: linear-gradient(135deg,var(--pink),var(--pink-dark));
+  color: #fff; border: none; border-radius: 50px; padding: 11px 32px;
+  font-family: 'Kanit',sans-serif; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(255,80,160,.32); transition: transform .15s, box-shadow .15s; letter-spacing: .5px;
+}
+.btn-reset:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(255,80,160,.4); }
+
+/* ═══════════════════════════════════ DEADLINE ROW */
+.deadline-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
+.dl-pill { background: #fff; border-radius: 12px; padding: 7px 14px; text-align: center; box-shadow: 0 2px 8px rgba(0,80,140,0.1); }
+.dl-pill .dl-l { font-size: 9px; color: #bbb; font-weight: 600; }
+.dl-pill .dl-v { font-size: 12px; color: #333; font-weight: 700; }
+
+/* ═══════════════════════════════════ REWARD OVERLAY */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,50,100,0.55); backdrop-filter: blur(7px);
+  z-index: 100; align-items: center; justify-content: center; padding: 20px;
+}
+.overlay.show { display: flex; animation: fadeIn .25s ease; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+/* ── Reward Card ── */
+.rcard {
+  background: #fff; border-radius: 28px; padding: 26px 22px;
+  max-width: 360px; width: 100%; text-align: center;
+  box-shadow: 0 20px 56px rgba(0,80,160,.22);
+  animation: popUp .35s cubic-bezier(.34,1.56,.64,1);
+  position: relative; overflow: hidden;
+}
+.rcard::before { content:''; position:absolute; top:-50px; left:-50px; width:180px; height:180px; background:radial-gradient(circle,#ff6eb428 0%,transparent 70%); border-radius:50%; }
+@keyframes popUp { from{opacity:0;transform:translateY(36px) scale(.92)} to{opacity:1;transform:none} }
+
+.r-emoji { font-size: 50px; display: block; margin-bottom: 8px; }
+.r-title { font-size: 21px; font-weight: 900; color: var(--pink-dark); margin-bottom: 3px; }
+.r-sub   { font-size: 12px; color: #999; font-weight: 600; margin-bottom: 12px; }
+.r-badge { display: inline-block; background: linear-gradient(135deg,#ff6eb4,#ff2d78); color:#fff; font-size:11px; font-weight:700; padding:3px 14px; border-radius:20px; margin-bottom:14px; }
+
+/* QR Box */
+.qr-box {
+  background: linear-gradient(135deg,#f0fbff,#ddf3ff);
+  border: 2px solid #bde8ff; border-radius: 18px; padding: 14px; margin-bottom: 14px;
+}
+.qr-lbl { font-size: 10px; font-weight: 700; color: #007fa3; letter-spacing: 1px; margin-bottom: 8px; }
+#qr-canvas { display: flex; justify-content: center; margin-bottom: 8px; }
+#qr-canvas canvas { border-radius: 8px; border: 4px solid #fff; box-shadow: 0 4px 14px rgba(0,100,150,.15); }
+.qr-url { font-size: 8.5px; color: #aaa; word-break: break-all; background: #f8f8f8; border-radius: 8px; padding: 5px 7px; line-height: 1.5; }
+
+/* Reward Buttons */
+.btn-line {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #06c755; color: #fff; border: none; border-radius: 50px;
+  padding: 12px 24px; font-family:'Kanit',sans-serif; font-size:15px; font-weight:700;
+  cursor: pointer; text-decoration: none; width: 100%; margin-bottom: 8px;
+  box-shadow: 0 4px 14px rgba(6,199,85,.32); transition: transform .15s, box-shadow .15s;
+}
+.btn-line:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(6,199,85,.38); }
+.btn-copy {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: #f0f0f0; color: #555; border: none; border-radius: 50px;
+  padding: 9px 22px; font-family:'Kanit',sans-serif; font-size:13px; font-weight:600;
+  cursor: pointer; width: 100%; margin-bottom: 8px; transition: background .15s;
+}
+.btn-copy.copied { background: #d4fce8; color: #1a7a45; }
+.btn-close { background: none; border: none; color: #bbb; font-size:12px; font-weight:600; cursor:pointer; font-family:'Kanit',sans-serif; }
+.btn-close:hover { color: #888; }
+
+/* ── Already Claimed Card ── */
+.claimed-card {
+  background: #fff; border-radius: 28px; padding: 28px 22px;
+  max-width: 360px; width: 100%; text-align: center;
+  box-shadow: 0 20px 56px rgba(0,80,160,.22);
+  animation: popUp .35s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── Sold Out Card ── */
+.soldout-card {
+  background: #fff; border-radius: 28px; padding: 36px 24px;
+  max-width: 340px; width: 100%; text-align: center;
+  box-shadow: 0 20px 56px rgba(0,80,160,.22);
+  animation: popUp .35s cubic-bezier(.34,1.56,.64,1);
+}
+.soldout-card .s-emoji  { font-size: 56px; display: block; margin-bottom: 10px; }
+.soldout-card .s-title  { font-size: 22px; font-weight: 900; color: var(--red); margin-bottom: 8px; }
+.soldout-card .s-msg    { font-size: 13px; color: #666; line-height: 1.7; margin-bottom: 18px; }
+.soldout-card .btn-ok   { background: #f0f0f0; border: none; border-radius: 50px; padding: 10px 28px; font-family:'Kanit',sans-serif; font-size:14px; font-weight:600; cursor:pointer; color:#555; }
+
+/* ── LIFF Warning Card ── */
+.liff-warn-card {
+  background: #fff; border-radius: 28px; padding: 32px 24px;
+  max-width: 340px; width: 100%; text-align: center;
+  box-shadow: 0 20px 56px rgba(0,80,160,.22);
+  animation: popUp .35s cubic-bezier(.34,1.56,.64,1);
+}
+.liff-warn-card .w-emoji { font-size: 52px; display: block; margin-bottom: 10px; }
+.liff-warn-card .w-title { font-size: 20px; font-weight: 900; color: #f39c12; margin-bottom: 8px; }
+.liff-warn-card .w-msg   { font-size: 13px; color: #666; line-height: 1.7; margin-bottom: 18px; }
+.liff-warn-card .btn-ok  { background: #06c755; border: none; border-radius: 50px; padding: 12px 28px; font-family:'Kanit',sans-serif; font-size:15px; font-weight:700; cursor:pointer; color:#fff; }
+
+@media (max-width:400px) {
+  .cell { width:36px; height:36px; font-size:15px; border-radius:8px; }
+  .grid { gap:4px; } .grid-card { padding:10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ LOADING ══ -->
+<div id="loading-screen">
+  <div class="loading-logo">GSB NOW</div>
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loading-text">กำลังเชื่อมต่อ LINE...</div>
+</div>
+
+<!-- ══ REWARD MODAL ══ -->
+<div class="overlay" id="overlay">
+
+  <!-- 1. Reward QR Card -->
+  <div class="rcard" id="card-reward" style="display:none">
+    <span class="r-emoji">🎁</span>
+    <div class="r-title">ยินดีด้วย! คุณได้รางวัล</div>
+    <div class="r-sub">สแกน QR หรือกดปุ่มด้านล่างเพื่อรับ NOW POINT</div>
+    <div class="r-badge" id="r-badge">เหลือ — รางวัล</div>
+    <div class="qr-box">
+      <div class="qr-lbl">📱 สแกนรับคะแนนผ่าน LINE</div>
+      <div id="qr-canvas"></div>
+      <div class="qr-url" id="qr-url-text"></div>
+    </div>
+    <a href="#" id="btn-open-line" class="btn-line" target="_blank">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+      เปิดใน LINE รับคะแนนเลย
+    </a>
+    <button class="btn-copy" id="btn-copy" onclick="copyUrl()">📋 คัดลอก Link</button>
+    <button class="btn-close" onclick="closeOverlay()">ปิด (รับแล้ว)</button>
+  </div>
+
+  <!-- 2. Already Claimed -->
+  <div class="claimed-card" id="card-claimed" style="display:none">
+    <span class="r-emoji">✅</span>
+    <div class="r-title">คุณรับรางวัลแล้ว!</div>
+    <div class="r-sub" style="margin-bottom:12px">นี่คือ Link ของคุณ ใช้ได้ 1 ครั้งนะ</div>
+    <div class="qr-box">
+      <div class="qr-lbl">📱 QR Code ของคุณ</div>
+      <div id="qr-canvas-claimed"></div>
+      <div class="qr-url" id="qr-url-claimed"></div>
+    </div>
+    <a href="#" id="btn-open-claimed" class="btn-line" target="_blank">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+      เปิดใน LINE
+    </a>
+    <button class="btn-close" onclick="closeOverlay()">ปิด</button>
+  </div>
+
+  <!-- 3. Sold Out -->
+  <div class="soldout-card" id="card-soldout" style="display:none">
+    <span class="s-emoji">😢</span>
+    <div class="s-title">ของรางวัลหมดแล้ว!</div>
+    <div class="s-msg">
+      ขออภัย รางวัลทั้งหมดถูกแลกครบแล้ว<br>
+      ขอบคุณทุกท่านที่ร่วมสนุกกับ<br>
+      <strong>GSB NOW Activity</strong> 🎉<br><br>
+      ติดตามกิจกรรมดี ๆ ครั้งหน้าได้ที่ GSB NOW
+    </div>
+    <button class="btn-ok" onclick="closeOverlay()">ปิดหน้าต่าง</button>
+  </div>
+
+  <!-- 4. LIFF Warning (เปิดนอก LINE) -->
+  <div class="liff-warn-card" id="card-liff-warn" style="display:none">
+    <span class="w-emoji">📱</span>
+    <div class="w-title">กรุณาเปิดใน LINE</div>
+    <div class="w-msg">
+      กิจกรรมนี้ต้องเปิดผ่าน <strong>LINE App</strong> เพื่อยืนยันตัวตน<br>
+      และรับ NOW POINT เข้า Account ของคุณ<br><br>
+      กรุณาเปิด Link นี้ใน LINE Browser
+    </div>
+    <button class="btn-ok" onclick="closeOverlay()">เข้าใจแล้ว</button>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div class="header">
+  <div class="badge">🔍 NOW ACTIVITY</div>
+  <div class="title-th">ช่วยหาหน่อย!</div>
+  <div class="title-brand">GSB NOW</div>
+  <div class="subtitle">มีคำว่า <strong>GSB NOW</strong> ทั้งหมดกี่คำ?</div>
+  <div style="display:flex;justify-content:center;margin-top:6px">
+    <div class="user-strip" id="user-strip">
+      <img class="user-avatar" id="user-avatar" src="" alt="">
+      <span class="user-name" id="user-name">—</span>
+      <span class="liff-badge">LINE ✓</span>
+    </div>
+  </div>
+</div>
+
+<div class="stock-bar" id="stock-bar">
+  <span class="dot" id="stock-dot"></span>
+  <span id="stock-text">กำลังโหลด...</span>
+</div>
+
+<div class="instruction">
+  ลาก หรือ แตะ ทีละตัวอักษร เพื่อเลือกคำ <strong>GSBNOW</strong><br>
+  ทุกทิศทาง: → ↓ ↗ ↘ และย้อนกลับ!
+</div>
+
+<div class="counter-wrap">
+  <div class="counter-box">
+    <div class="counter-label">พบแล้ว</div>
+    <div class="counter-num" id="found-count">0</div>
+    <div class="counter-total">/ <span id="total-count">?</span> คำ</div>
+  </div>
+  <div class="dir-box">
+    <div class="dir-label">ทิศทางที่พบ</div>
+    <div class="dir-chips" id="dir-list"></div>
+  </div>
+</div>
+
+<div class="status-msg" id="status">👆 เริ่มแตะที่ตัวอักษรเลย!</div>
+
+<div class="grid-card">
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="congrats" id="congrats">
+  <h2>🎉 เก่งมาก! ครบแล้ว!</h2>
+  <p>พบ GSB NOW ครบ <strong id="congrats-total">0</strong> คำ · กำลังเตรียมรางวัล...</p>
+</div>
+
+<button class="btn-reset" onclick="resetGame()">🔄 เริ่มใหม่</button>
+
+<div class="deadline-row">
+  <div class="dl-pill"><div class="dl-l">ร่วมสนุก</div><div class="dl-v">24–30 เม.ษ. 2569</div></div>
+  <div class="dl-pill"><div class="dl-l">ประกาศผล</div><div class="dl-v">12 พ.ค. 2569</div></div>
+  <div class="dl-pill"><div class="dl-l">รางวัล</div><div class="dl-v">50 NOW POINT × 100</div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════ -->
+<script>
+// ┌─────────────────────────────────────────────┐
+// │  ⚙️  CONFIG — แก้ค่าเหล่านี้ก่อน deploy      │
+// └─────────────────────────────────────────────┘
+const CONFIG = {
+  LIFF_ID:          '2006674119-aZe9oQ2M',       // เช่น '1234567890-AbCdEfGh'
+  SUPABASE_URL:     'https://fupmespennihqwblsnyp.supabase.co',  // เช่น 'https://xxxx.supabase.co'
+  SUPABASE_ANON:    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1cG1lc3Blbm5paHF3YmxzbnlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1ODI0NjEsImV4cCI6MjA5MDE1ODQ2MX0.ThrP4KSGZ3aqkMGXIE3rEk3Muc_KInIEbxazrZ6mru4',      // จาก Supabase → Settings → API
+};
+
+// ── Init Supabase ──
+const { createClient } = supabase;
+const db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON);
+
+// ── State ──
+let lineUID = null, lineProfile = null;
+let rewardUrl = null;
+let gameCompleted = false;
+
+// ══════════════════════════════════════════════
+//  LIFF INIT
+// ══════════════════════════════════════════════
+async function initLiff() {
+  setLoading('กำลังเชื่อมต่อ LINE...');
+  try {
+    await liff.init({ liffId: CONFIG.LIFF_ID });
+
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: location.href });
+      return;
+    }
+
+    if (!liff.isInClient()) {
+      // เปิดนอก LINE — แจ้งเตือน แต่ยังเล่นได้ (ไม่มี UID)
+      setLoading('กำลังโหลดเกม...');
+      lineUID = null;
+      showOverlayCard('card-liff-warn');
+      hideLoading();
+      loadStockBar();
+      return;
+    }
+
+    setLoading('กำลังดึงข้อมูล LINE...');
+    lineProfile = await liff.getProfile();
+    lineUID = lineProfile.userId;
+
+    // แสดง user strip
+    document.getElementById('user-avatar').src = lineProfile.pictureUrl || '';
+    document.getElementById('user-name').textContent = lineProfile.displayName || '';
+    document.getElementById('user-strip').classList.add('show');
+
+    // เช็คว่าเคย claim แล้วหรือยัง
+    setLoading('กำลังตรวจสอบสิทธิ์...');
+    const { data, error } = await db.rpc('get_reward_status', { p_line_uid: lineUID });
+    if (!error && data?.status === 'already_claimed') {
+      rewardUrl = data.reward_url;
+      hideLoading();
+      loadStockBar();
+      setTimeout(() => showAlreadyClaimed(rewardUrl), 600);
+      return;
+    }
+
+    hideLoading();
+    loadStockBar();
+
+  } catch (err) {
+    console.error('LIFF init error:', err);
+    setLoading('ไม่สามารถเชื่อมต่อ LINE ได้');
+    setTimeout(hideLoading, 2000);
+    loadStockBar();
+  }
+}
+
+function setLoading(txt) { document.getElementById('loading-text').textContent = txt; }
+function hideLoading()   { document.getElementById('loading-screen').style.display = 'none'; }
+
+// ══════════════════════════════════════════════
+//  STOCK BAR
+// ══════════════════════════════════════════════
+async function loadStockBar() {
+  try {
+    const { data } = await db.rpc('get_reward_status', { p_line_uid: lineUID || 'anonymous' });
+    const rem = data?.remaining ?? 0;
+    updateStockUI(rem);
+  } catch { updateStockUI(null); }
+}
+
+function updateStockUI(rem) {
+  const dot = document.getElementById('stock-dot');
+  const txt = document.getElementById('stock-text');
+  if (rem === null) { txt.textContent = '🎁 กำลังโหลดจำนวนรางวัล...'; return; }
+  if (rem === 0) {
+    dot.className = 'dot out';
+    txt.textContent = '❌ ของรางวัลถูกแลกครบแล้ว';
+  } else if (rem <= 10) {
+    dot.className = 'dot low';
+    txt.textContent = `⚠️ รางวัลเหลือน้อย! เหลืออีก ${rem} รางวัล`;
+  } else {
+    dot.className = 'dot';
+    txt.textContent = `🎁 รางวัลคงเหลือ ${rem} / 98 รางวัล`;
+  }
+}
+
+// ══════════════════════════════════════════════
+//  CLAIM REWARD (เรียกหลังเกมชนะ)
+// ══════════════════════════════════════════════
+async function claimReward() {
+  if (!lineUID) { showOverlayCard('card-liff-warn'); return; }
+
+  showStatus('⏳ กำลังรับรางวัล...', '');
+  try {
+    const { data, error } = await db.rpc('atomic_claim_reward', {
+      p_line_uid:     lineUID,
+      p_display_name: lineProfile?.displayName || null,
+      p_picture_url:  lineProfile?.pictureUrl  || null,
+    });
+
+    if (error) throw error;
+
+    if (data.status === 'success') {
+      rewardUrl = data.reward_url;
+      updateStockUI(data.remaining);
+      showRewardCard(rewardUrl, data.remaining);
+    } else if (data.status === 'already_claimed') {
+      rewardUrl = data.reward_url;
+      updateStockUI(data.remaining);
+      showAlreadyClaimed(rewardUrl);
+    } else if (data.status === 'sold_out') {
+      updateStockUI(0);
+      showOverlayCard('card-soldout');
+    }
+  } catch (err) {
+    console.error(err);
+    showStatus('❌ เกิดข้อผิดพลาด กรุณาลองใหม่', 'err');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  OVERLAY HELPERS
+// ══════════════════════════════════════════════
+function showOverlayCard(id) {
+  ['card-reward','card-claimed','card-soldout','card-liff-warn'].forEach(c => {
+    document.getElementById(c).style.display = 'none';
+  });
+  document.getElementById(id).style.display = 'block';
+  document.getElementById('overlay').classList.add('show');
+}
+function closeOverlay() { document.getElementById('overlay').classList.remove('show'); }
+
+function showRewardCard(url, remaining) {
+  document.getElementById('r-badge').textContent = `เหลืออีก ${remaining} รางวัล`;
+  document.getElementById('qr-url-text').textContent = url;
+  document.getElementById('btn-open-line').href = url;
+  document.getElementById('qr-canvas').innerHTML = '';
+  new QRCode(document.getElementById('qr-canvas'), { text: url, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
+  showOverlayCard('card-reward');
+}
+
+function showAlreadyClaimed(url) {
+  document.getElementById('qr-url-claimed').textContent = url;
+  document.getElementById('btn-open-claimed').href = url;
+  document.getElementById('qr-canvas-claimed').innerHTML = '';
+  new QRCode(document.getElementById('qr-canvas-claimed'), { text: url, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
+  showOverlayCard('card-claimed');
+}
+
+let currentRewardUrl = '';
+function copyUrl() {
+  const url = document.getElementById('qr-url-text').textContent || rewardUrl;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = '✅ คัดลอกแล้ว!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 คัดลอก Link'; btn.classList.remove('copied'); }, 2200);
+  });
+}
+
+// ══════════════════════════════════════════════
+//  WORD SEARCH GAME
+// ══════════════════════════════════════════════
+const ROWS = [
+  ['G','G','O','S','B','E','R','G'],
+  ['B','G','S','B','N','O','W','S'],
+  ['A','S','T','B','I','N','G','B'],
+  ['G','G','S','B','N','O','W','N'],
+  ['U','R','B','O','O','O','W','O'],
+  ['G','S','B','N','O','W','W','W'],
+  ['B','O','B','O','N','E','S','O'],
+  ['A','S','T','U','D','L','I','G'],
+];
+const TARGET = 'GSBNOW';
+const DIRS = [
+  [0,1,'→ ขวา'],[0,-1,'← ซ้าย'],
+  [1,0,'↓ ลง'],[-1,0,'↑ ขึ้น'],
+  [1,1,'↘ แนวทแยง'],[1,-1,'↙ แนวทแยง'],
+  [-1,1,'↗ แนวทแยง'],[-1,-1,'↖ แนวทแยง'],
+];
+
+function findAll() {
+  const found = [], R = ROWS.length, C = ROWS[0].length;
+  for (let r=0;r<R;r++) for (let c=0;c<C;c++)
+    for (const [dr,dc,lbl] of DIRS) {
+      let cells=[], ok=true;
+      for (let i=0;i<TARGET.length;i++) {
+        const nr=r+dr*i, nc=c+dc*i;
+        if (nr<0||nr>=R||nc<0||nc>=C||ROWS[nr][nc]!==TARGET[i]) { ok=false; break; }
+        cells.push([nr,nc]);
+      }
+      if (ok) found.push({cells, label: lbl});
+    }
+  return found;
+}
+const ALL = findAll();
+const TOTAL = ALL.length;
+const pathMap = {};
+ALL.forEach((o,i) => { pathMap[o.cells.map(([r,c])=>`${r},${c}`).join('|')] = i; });
+
+document.getElementById('total-count').textContent = TOTAL;
+document.getElementById('congrats-total').textContent = TOTAL;
+
+const gridEl = document.getElementById('grid');
+const cellEls = [];
+
+function renderGrid() {
+  gridEl.innerHTML = '';
+  for (let r=0;r<ROWS.length;r++) {
+    cellEls[r] = [];
+    for (let c=0;c<ROWS[r].length;c++) {
+      const d = document.createElement('div');
+      d.className = 'cell'; d.textContent = ROWS[r][c];
+      d.dataset.r = r; d.dataset.c = c;
+      gridEl.appendChild(d); cellEls[r][c] = d;
+    }
+  }
+}
+
+let selecting=false, selCells=[], foundIdx=new Set(), foundSet=new Set();
+
+const cKey = (r,c) => `${r},${c}`;
+
+function updateStyles() {
+  for (let r=0;r<ROWS.length;r++) for (let c=0;c<ROWS[r].length;c++) {
+    const el = cellEls[r]?.[c]; if (!el) continue;
+    el.classList.remove('found','selecting');
+    if (foundSet.has(cKey(r,c))) el.classList.add('found');
+  }
+  selCells.forEach(({r,c}) => cellEls[r]?.[c]?.classList.add('selecting'));
+}
+
+function startSel(r,c) { selecting=true; selCells=[{r,c}]; updateStyles(); }
+
+function extendSel(r,c) {
+  if (!selecting || !selCells.length) return;
+  if (selCells.some(s=>s.r===r&&s.c===c)) return;
+  const first=selCells[0], nr=r-first.r, nc=c-first.c;
+  const len=Math.max(Math.abs(nr),Math.abs(nc)); if (!len) return;
+  const udr=nr/len, udc=nc/len;
+  if (!Number.isInteger(udr)||!Number.isInteger(udc)||Math.abs(udr)>1||Math.abs(udc)>1) return;
+  const ns=[];
+  for (let i=0;i<=len;i++) ns.push({r:first.r+udr*i, c:first.c+udc*i});
+  if (ns.length > TARGET.length) return;
+  selCells = ns; updateStyles();
+}
+
+function endSel() {
+  if (!selecting) return;
+  selecting = false;
+  if (selCells.length === TARGET.length) {
+    const key = selCells.map(({r,c})=>cKey(r,c)).join('|');
+    const idx = pathMap[key];
+    if (idx !== undefined) {
+      if (!foundIdx.has(idx)) {
+        foundIdx.add(idx);
+        ALL[idx].cells.forEach(([r,c])=>foundSet.add(cKey(r,c)));
+        showStatus(`🎉 เจอแล้ว! ${ALL[idx].label}`, 'ok');
+        document.getElementById('found-count').textContent = foundIdx.size;
+        const chip = document.createElement('span');
+        chip.className = 'chip'; chip.textContent = ALL[idx].label;
+        document.getElementById('dir-list').appendChild(chip);
+        if (foundIdx.size === TOTAL) onGameComplete();
+      } else { showStatus('✅ คำนี้พบแล้ว!', 'err'); }
+    } else { showStatus('❌ ไม่ใช่คำ GSBNOW ลองใหม่นะ', 'err'); }
+  } else if (selCells.length > 1) {
+    showStatus('❌ ความยาวไม่ถูก (ต้องการ 6 ตัว)', 'err');
+  }
+  selCells = []; updateStyles();
+}
+
+function onGameComplete() {
+  if (gameCompleted) return;
+  gameCompleted = true;
+  document.getElementById('congrats').classList.add('show');
+  setTimeout(() => claimReward(), 1200);
+}
+
+function showStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg; el.className = 'status-msg ' + (cls||'');
+}
+
+function resetGame() {
+  foundIdx.clear(); foundSet.clear(); selCells = []; selecting = false; gameCompleted = false;
+  document.getElementById('found-count').textContent = '0';
+  document.getElementById('dir-list').innerHTML = '';
+  document.getElementById('congrats').classList.remove('show');
+  showStatus('👆 เริ่มแตะที่ตัวอักษรเลย!', '');
+  updateStyles();
+}
+
+// ── Event Listeners ──
+const fromEl  = el => el?.classList.contains('cell') ? {r:+el.dataset.r, c:+el.dataset.c} : null;
+const fromPt  = (x,y) => fromEl(document.elementFromPoint(x,y));
+
+gridEl.addEventListener('mousedown', e => { const c=fromEl(e.target); if(c){e.preventDefault();startSel(c.r,c.c);} });
+gridEl.addEventListener('mousemove', e => { if(!selecting)return; const c=fromEl(e.target); if(c)extendSel(c.r,c.c); });
+document.addEventListener('mouseup', ()=>{ if(selecting)endSel(); });
+
+gridEl.addEventListener('touchstart', e => { const t=e.touches[0]; const c=fromPt(t.clientX,t.clientY); if(c){e.preventDefault();startSel(c.r,c.c);} },{passive:false});
+gridEl.addEventListener('touchmove',  e => { if(!selecting)return; const t=e.touches[0]; const c=fromPt(t.clientX,t.clientY); if(c){e.preventDefault();extendSel(c.r,c.c);} },{passive:false});
+gridEl.addEventListener('touchend',   ()=>{ if(selecting)endSel(); });
+
+// ══════════════════════════════════════════════
+//  DECORATIVE BUBBLES
+// ══════════════════════════════════════════════
+['#ff6eb4','#ffe44d','#fff','#29cfe4'].forEach(color => {
+  for (let i=0; i<4; i++) {
+    const b = document.createElement('div'); b.className = 'bubble';
+    const s = 20+Math.random()*55;
+    b.style.cssText = `width:${s}px;height:${s}px;left:${Math.random()*100}%;background:${color};animation-duration:${9+Math.random()*11}s;animation-delay:${-Math.random()*16}s`;
+    document.body.appendChild(b);
+  }
+});
+
+// ══════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════
+renderGrid();
+initLiff();
+</script>
+</body>
+</html>
